@@ -21,69 +21,69 @@ Package namespace: `com.developer4droid.ofuse`.
 
 ## Current state (as of 2026-07-10)
 
-This repo is a **freshly scaffolded default Android Studio project** — single
-`:app` module, Jetpack Compose, minSdk 31 / targetSdk 37, package
-`com.developer4droid.ofuse`. Nothing library-specific has been built yet:
+Built and published:
 
-- No separate library module exists yet. The existing `:app` module is
-  template boilerplate (default `MainActivity` + theme files) and is intended
-  to become (or be replaced by) the **sample/test app** that exercises the
-  library — this needs a production SDK, not just inline code living in a
-  single app, so the repo should end up with at least two modules: a
-  publishable library module (e.g. `:ofuse` or `:library`) and a `:sample` (or
-  renamed `:app`) module that depends on it and demonstrates real usage.
-- No donation-link UI, no Ko-fi integration, no publishing setup (Maven
-  coordinates, JitPack/GitHub Packages, versioning) exists yet.
+- `:ofuse` — the library module (`com.android.library`), containing:
+  - `SupportDeveloperRow` (`SupportDeveloperRow.kt`) — a ready-made
+    Material3 `ListItem` composable, configured with a `supportUrl` string,
+    optional title/description/icon.
+  - `OfuseLauncher` (`OfuseLauncher.kt`) — a standalone `object` that opens a
+    URL in a Custom Tab (`androidx.browser`), used internally by
+    `SupportDeveloperRow` and also exposed for consumers who want to trigger
+    it from their own UI.
+  - Published on JitPack as `com.github.AlienAsRoger:ofuse:0.1.0` (repo is
+    public; JitPack's free tier requires that). Versioning/publishing is via
+    a `maven-publish` block in `ofuse/build.gradle.kts` with explicit
+    `groupId`/`artifactId` overrides, plus a root `jitpack.yml` pinning
+    `openjdk21`.
+- `:sample` — a small app module depending on `:ofuse`, demonstrating real
+  integration (run it directly from Android Studio).
+- `README.md` — installation (JitPack repo + dependency coordinates) and
+  usage instructions, written so this can be handed to a fresh Claude Code
+  session in any consuming project without re-deriving the setup.
+- Already integrated into `Makoto` (`app/build.gradle.kts` +
+  `MainActivity.kt`), linking to `https://ko-fi.com/developer4droid`,
+  verified end-to-end on-device.
 
-## Intended design (discussed, not yet built)
+## Design decisions (why it's built this way)
 
-- **Ko-fi first.** Ko-fi was chosen over Buy Me a Coffee (5% platform fee) and
-  GitHub Sponsors (developer-coded audience, less recognizable to general
-  end-users) because it has a 0% platform fee and reads as a generic
-  "support this creator" link to non-technical users — which matters since
-  consuming apps like Makoto are aimed at general users, not developers.
-- **External link, not in-app purchase.** The common, Play-policy-safe pattern
-  in indie Android apps is a "Support development" row (e.g. in a Settings
-  screen) that opens the creator's Ko-fi page via a Custom Tab — no Play
-  Billing integration, since a no-strings-attached tip isn't a digital good
-  purchased inside the app. Ofuse should follow that pattern rather than
-  building any in-app purchase flow.
-- **Keep the platform swappable.** Even though Ko-fi is the first (and only
-  initially required) backend, avoid hardcoding "Ko-fi" throughout the public
-  API — a consuming app should configure a URL/handle, and the library's
-  surface should be able to accommodate a different or additional platform
-  later (Buy Me a Coffee, GitHub Sponsors) without a breaking API change, in
-  the same spirit as `BubbleHost` in Makoto being an interface that
-  `NotificationBubbleHost` implements. Don't over-build this abstraction
-  before there's a second real platform to support, though — a single
-  configurable "support link" entry point is enough for v1.
-- **Production SDK bar.** This isn't a copy-pasted snippet — it should have
-  its own sample app demonstrating integration, sensible Compose theming that
-  doesn't fight a consumer app's own theme, and be set up for actual
-  publishing (Maven coordinates + a real distribution mechanism) so other
-  projects can add it as a normal Gradle dependency.
+- **Ko-fi first, not hardcoded.** Ko-fi was chosen over Buy Me a Coffee (5%
+  platform fee) and GitHub Sponsors (developer-coded audience, less
+  recognizable to general end-users) for its 0% platform fee and generic
+  "support this creator" framing — but `SupportDeveloperRow.supportUrl` is
+  just a `String`, so it works with any platform's URL without library
+  changes. Don't build a `SupportPlatform` enum/abstraction unless a second
+  real platform actually needs different handling (e.g. platform-specific
+  deep links) — a single configurable URL is enough for v1.
+- **External link, not in-app purchase.** `OfuseLauncher` only ever opens a
+  Custom Tab — no Play Billing integration. This matches the common,
+  Play-policy-safe pattern in indie Android apps for no-strings-attached
+  tips, and deliberately avoids the complexity (and Google's cut) of a real
+  IAP flow for something that isn't a digital good purchased in-app.
+- **`api(...)` for Compose/Material3 in `ofuse/build.gradle.kts`.** The
+  library's public surface returns Composable functions using Material3
+  types, so those dependencies are exposed transitively rather than as
+  `implementation`, avoiding duplicate/mismatched Compose versions in
+  consumers.
 
 ## Relationship to other projects
 
-- `Makoto` (`/Users/alekseishchekin/StudioProjects/Makoto`) is the first
-  intended consumer — it currently has no donation mechanism; once Ofuse has
-  a usable first version, Makoto should add it as a dependency and surface a
-  "Support development" entry point (likely from `MainActivity`, alongside
-  its existing "Real trigger" / "Manual demo" sections).
-- More apps will likely consume this over time — that's the whole reason this
-  is its own repo/library instead of code living inside Makoto.
+- `Makoto` is the first consumer and already depends on the published
+  JitPack artifact (not a local module include) — treat this repo and
+  Makoto as fully independent from here on; changes to Ofuse need a version
+  bump + new JitPack build before Makoto (or any other consumer) picks them
+  up.
+- More apps may consume this over time — that's the reason this is its own
+  repo/library instead of code living inside Makoto.
 
 ## Next steps (not yet built)
 
-1. Add a real library module (decide `:ofuse` vs `:library` naming) separate
-   from the sample app module.
-2. Design the minimal public API: something like a single Compose
-   composable/button (or settings-row component) configured with a Ko-fi
-   page URL, opening it via `CustomTabsIntent`.
-3. Turn the existing `:app` module into (or add) a `:sample` module that
-   depends on the library module and demonstrates real integration.
-4. Decide on and set up distribution (JitPack from this GitHub repo is the
-   lowest-ceremony option; local Maven or GitHub Packages are alternatives)
-   so Makoto and future apps can depend on a published version rather than a
-   local path/module include.
-5. Integrate into Makoto once a first version exists.
+- No `LICENSE` file yet — needed now that the repo is public and consumable
+  by other projects via JitPack.
+- No automated tests (unit or instrumented) beyond the default template
+  stubs in `:sample`.
+- No CI (GitHub Actions) — JitPack's own build is the only thing currently
+  verifying `:ofuse` compiles.
+- If a second donation platform is ever added with different linking needs
+  (e.g. an SDK instead of a plain URL), revisit the "keep it a plain
+  `String`" decision above — don't preemptively build for that now.
