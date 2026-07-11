@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "com.developer4droid.ofuse"
     compileSdk {
-        version = release(37)
+        version = release(36)
     }
 
     defaultConfig {
@@ -48,7 +48,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.AlienAsRoger"
                 artifactId = "ofuse"
-                version = "0.1.0"
+                version = "0.1.1"
             }
         }
     }

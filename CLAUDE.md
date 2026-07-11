@@ -31,19 +31,32 @@ Built and published:
     URL in a Custom Tab (`androidx.browser`), used internally by
     `SupportDeveloperRow` and also exposed for consumers who want to trigger
     it from their own UI.
-  - Published on JitPack as `com.github.AlienAsRoger:ofuse:0.1.0` (repo is
+  - Published on JitPack as `com.github.AlienAsRoger:ofuse:0.1.1` (repo is
     public; JitPack's free tier requires that). Versioning/publishing is via
     a `maven-publish` block in `ofuse/build.gradle.kts` with explicit
     `groupId`/`artifactId` overrides, plus a root `jitpack.yml` pinning
     `openjdk21`.
+  - **compileSdk 36, not 37** (downgraded from the original 0.1.0, along with
+    AGP 9.4.0-alpha01 → 8.13.2, `androidx.core-ktx` 1.19.0 → 1.17.0,
+    `composeBom` → 2025.12.01, `lifecycle-runtime-ktx` → 2.10.0). 0.1.0 was
+    accidentally built against compileSdk 37 / an alpha AGP, which baked a
+    compileSdk-37 requirement into the published AAR — any consumer still on
+    stable AGP 8.x / compileSdk 36 (like `MovieSuggestion`, see below)
+    couldn't add the dependency at all. `Makoto` was already on compileSdk 37
+    so it never hit this; keep new versions on the lowest compileSdk that
+    still builds, not whatever the local IDE template defaults to, so the
+    library stays consumable by apps on stable tooling.
 - `:sample` — a small app module depending on `:ofuse`, demonstrating real
   integration (run it directly from Android Studio).
 - `README.md` — installation (JitPack repo + dependency coordinates) and
   usage instructions, written so this can be handed to a fresh Claude Code
   session in any consuming project without re-deriving the setup.
-- Already integrated into `Makoto` (`app/build.gradle.kts` +
-  `MainActivity.kt`), linking to `https://ko-fi.com/developer4droid`,
-  verified end-to-end on-device.
+- Consumers:
+  - `Makoto` (`app/build.gradle.kts` + `MainActivity.kt`), linking to
+    `https://ko-fi.com/developer4droid`, verified end-to-end on-device.
+  - `MovieSuggestion` (`app/build.gradle.kts` +
+    `ui/screens/SubscriptionPickerScreen.kt`), same Ko-fi URL, added on
+    2026-07-10 — the app that surfaced the compileSdk-37 problem above.
 
 ## Design decisions (why it's built this way)
 
