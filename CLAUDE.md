@@ -31,7 +31,7 @@ Built and published:
     URL in a Custom Tab (`androidx.browser`), used internally by
     `SupportDeveloperRow` and also exposed for consumers who want to trigger
     it from their own UI.
-  - Published on JitPack as `com.github.AlienAsRoger:ofuse:0.1.1` (repo is
+  - Published on JitPack as `com.github.AlienAsRoger:ofuse:0.1.2` (repo is
     public; JitPack's free tier requires that). Versioning/publishing is via
     a `maven-publish` block in `ofuse/build.gradle.kts` with explicit
     `groupId`/`artifactId` overrides, plus a root `jitpack.yml` pinning
@@ -46,6 +46,25 @@ Built and published:
     so it never hit this; keep new versions on the lowest compileSdk that
     still builds, not whatever the local IDE template defaults to, so the
     library stays consumable by apps on stable tooling.
+  - **Gradle wrapper pinned to 8.13, not 9.5.0.** The AGP 9-alpha era left
+    the wrapper on Gradle 9.5.0; pairing that with AGP 8.13.2 (after the
+    compileSdk downgrade above) caused a real but easy-to-miss failure:
+    `0.1.1` built and published fine *locally*, but failed on JitPack's
+    clean-checkout build with a configuration-cache serialization error
+    (`error writing value of type DefaultArtifactCollection` while checking
+    AAR metadata) — Gradle 9.x's internal artifact-collection representation
+    isn't config-cache-safe with AGP 8.x's older serializers. Reproduced
+    locally by deleting `.gradle`/`build` and rebuilding cold; fixed by
+    pinning the wrapper to Gradle 8.13 (the version `MovieSuggestion`, a
+    known-working AGP 8.13.2 consumer, already uses) via
+    `./gradlew wrapper --gradle-version 8.13 ...`. **Lesson: after changing
+    AGP major/minor version, always re-pin the Gradle wrapper to a version
+    from that AGP's supported range, and validate with a fully clean build
+    (no `.gradle`/`build` dirs) — a locally-cached build can succeed even
+    when a genuinely cold one (like JitPack's) won't.** `0.1.1` was tagged
+    and pushed but never produced a working JitPack artifact, so it was
+    deleted rather than left as a permanently-broken version tag; `0.1.2` is
+    the first working post-compileSdk-downgrade release.
 - `:sample` — a small app module depending on `:ofuse`, demonstrating real
   integration (run it directly from Android Studio).
 - `README.md` — installation (JitPack repo + dependency coordinates) and

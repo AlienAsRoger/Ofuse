@@ -29,7 +29,7 @@ Add the dependency to your app/feature module's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.AlienAsRoger:ofuse:0.1.1")
+    implementation("com.github.AlienAsRoger:ofuse:0.1.2")
 }
 ```
 
