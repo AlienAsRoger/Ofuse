@@ -25,9 +25,9 @@ design rationale and hard-won JitPack/compileSdk/Gradle-wrapper gotchas.
 ## Immediate gaps
 
 - [x] **LICENSE file** — added; repo is public and consumable via JitPack.
-- [ ] **No automated tests** — unit or instrumented — beyond the default
+- [ ] **No automated tests** ([#1](https://github.com/AlienAsRoger/Ofuse/issues/1)) — unit or instrumented — beyond the default
       `:sample` template stubs.
-- [ ] **No CI (GitHub Actions).** JitPack's own build is currently the only
+- [ ] **No CI (GitHub Actions).** ([#2](https://github.com/AlienAsRoger/Ofuse/issues/2)) JitPack's own build is currently the only
       thing verifying `:ofuse` compiles on a clean checkout. Worth adding a
       basic build/lint workflow so breakage is caught before a version tag
       is pushed, not discovered on JitPack (see the 0.1.1 incident in
@@ -35,15 +35,15 @@ design rationale and hard-won JitPack/compileSdk/Gradle-wrapper gotchas.
 
 ## Ideas worth prototyping next
 
-- [ ] **A second donation platform / deep-link support.** Currently
+- [ ] **A second donation platform / deep-link support.** ([#3](https://github.com/AlienAsRoger/Ofuse/issues/3)) Currently
       deliberately just a plain `String` URL (Ko-fi-shaped, but
       platform-agnostic). Only worth a `SupportPlatform` abstraction if a
       real second platform needs different linking behavior — don't build
       this speculatively.
-- [ ] **A third consumer app.** `Kodama` and `YourLeetCode` don't currently
+- [ ] **A third consumer app.** ([#4](https://github.com/AlienAsRoger/Ofuse/issues/4)) `Kodama` and `YourLeetCode` don't currently
       depend on Ofuse — worth checking whether they should, for consistency
       with `Makoto`/`MovieSuggestion`.
-- [ ] **Pre-release JitPack build verification.** Given the past incident
+- [ ] **Pre-release JitPack build verification.** ([#5](https://github.com/AlienAsRoger/Ofuse/issues/5)) Given the past incident
       where a locally-fine build failed on JitPack's clean checkout, worth
       scripting a local "clean build" check (delete `.gradle`/`build`,
       rebuild cold) as a pre-tag step, whether or not full CI lands first.
