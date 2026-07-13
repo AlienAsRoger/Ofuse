@@ -24,6 +24,11 @@ android {
         compose = true
     }
 
+    lint {
+        checkDependencies = true
+        abortOnError = false
+    }
+
     publishing {
         singleVariant("release") {
             withSourcesJar()

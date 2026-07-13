@@ -33,6 +33,11 @@ android {
     buildFeatures {
         compose = true
     }
+
+    lint {
+        checkDependencies = true
+        abortOnError = false
+    }
 }
 
 dependencies {

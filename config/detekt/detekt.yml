@@ -1,0 +1,46 @@
+build:
+  maxIssues: -1
+
+config:
+  validation: true
+  warningsAsErrors: false
+
+comments:
+  UndocumentedPublicClass:
+    active: false
+  UndocumentedPublicFunction:
+    active: false
+  UndocumentedPublicProperty:
+    active: false
+
+complexity:
+  LongParameterList:
+    active: true
+    functionThreshold: 8
+    constructorThreshold: 8
+  TooManyFunctions:
+    active: true
+    thresholdInClasses: 20
+    thresholdInFiles: 20
+
+naming:
+  FunctionNaming:
+    active: true
+    # Allow PascalCase for @Composable functions.
+    functionPattern: '[a-zA-Z][a-zA-Z0-9]*'
+
+style:
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false
+  ReturnCount:
+    active: true
+    max: 4
+  WildcardImport:
+    active: true
+    excludeImports: []
+  UnusedPrivateMember:
+    active: true
+    # @Preview composables are only ever called by tooling, not from other code.
+    ignoreAnnotated: ['Preview']
