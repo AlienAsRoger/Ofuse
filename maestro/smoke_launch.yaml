@@ -1,0 +1,4 @@
+appId: com.developer4droid.ofuse.sample
+---
+- launchApp
+- takeScreenshot: launch
