@@ -121,7 +121,9 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: |
-            apk_path=$(find ${{ env.APP_MODULE }}/build/outputs/apk/debug -name "*.apk" | head -n1)
-            adb install -r "$apk_path"
-            "$HOME/.maestro/bin/maestro" test maestro/smoke_launch.yaml
+          # reactivecircus/android-emulator-runner executes each line of a multi-line
+          # `script:` block as an INDEPENDENT `sh -c` invocation, so $apk_path computed
+          # on one line is empty again by the next -- chain everything into one line.
+          # Absolute paths (via $GITHUB_WORKSPACE) since this step's shell doesn't
+          # necessarily start in the checkout directory.
+          script: apk_path=$(find "$GITHUB_WORKSPACE/${{ env.APP_MODULE }}/build/outputs/apk/debug" -name "*.apk" | head -n1); if [ -z "$apk_path" ]; then echo "No debug APK found under $GITHUB_WORKSPACE/${{ env.APP_MODULE }}/build/outputs/apk/debug"; exit 1; fi; adb install -r "$apk_path"; "$HOME/.maestro/bin/maestro" test "$GITHUB_WORKSPACE/maestro/smoke_launch.yaml"
