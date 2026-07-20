@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 90
+
+    env:
+      REQUIRED_ANDROID_PLATFORM: "36"
+      GRADLE_CI_ARGS: "--no-daemon --stacktrace --continue --max-workers=2"
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dkotlin.daemon.jvm.options=-Xmx1024m"
+
+    steps:
+      - name: Checkout repository into isolated CI workspace
+        uses: actions/checkout@v6
+        with:
+          path: src
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Verify Android SDK
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ANDROID_HOME:-}" ]]; then
+            for candidate in "$HOME/Library/Android/sdk" "/Users/Shared/Android/sdk"; do
+              if [[ -d "$candidate" ]]; then
+                ANDROID_HOME="$candidate"
+                break
+              fi
+            done
+          fi
+
+          if [[ -z "${ANDROID_HOME:-}" || ! -d "$ANDROID_HOME" ]]; then
+            echo "::error::ANDROID_HOME is not set and no Android SDK was found under \$HOME/Library/Android/sdk or /Users/Shared/Android/sdk."
+            exit 1
+          fi
+
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+
+          if ! compgen -G "$ANDROID_HOME/platforms/android-${REQUIRED_ANDROID_PLATFORM}*" > /dev/null; then
+            echo "::error::Missing Android SDK platform android-${REQUIRED_ANDROID_PLATFORM}. Install it for the runner user before rerunning CI."
+            exit 1
+          fi
+
+      - name: Apply CI-only Gradle resource limits
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          {
+            echo ""
+            echo "# CI-only overrides appended by .github/workflows/ci.yml"
+            echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8"
+            echo "org.gradle.workers.max=2"
+            echo "org.gradle.parallel=false"
+          } >> gradle.properties
+
+      - name: Build and test with Gradle
+        working-directory: src
+        shell: bash
+        run: ./gradlew $GRADLE_CI_ARGS assembleDebug check
+
+      - name: Ensure Maestro CLI is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -x "$HOME/.maestro/bin/maestro" ]]; then
+            curl -Ls "https://get.maestro.mobile.dev" | bash
+          fi
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Boot CI Android emulator
+        working-directory: src
+        shell: bash
+        env:
+          CI_AVD_NAME: CI_Ofuse_Pixel6_API34
+        run: |
+          set -euo pipefail
+          nohup "$ANDROID_HOME/emulator/emulator" -avd "$CI_AVD_NAME" \
+            -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect \
+            > "/tmp/emulator-$CI_AVD_NAME.log" 2>&1 &
+          "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          boot_completed=""
+          until [[ "$boot_completed" == "1" ]]; do
+            boot_completed=$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            sleep 2
+          done
+
+      - name: Run instrumented tests
+        working-directory: src
+        shell: bash
+        run: ./gradlew $GRADLE_CI_ARGS connectedDebugAndroidTest
+
+      - name: Install debug APK for Maestro
+        working-directory: src
+        shell: bash
+        env:
+          APP_MODULE: sample
+        run: |
+          set -euo pipefail
+          apk_path=$(find "$APP_MODULE/build/outputs/apk/debug" -name "*.apk" | head -n1)
+          if [[ -z "$apk_path" ]]; then
+            echo "::error::No debug APK found under $APP_MODULE/build/outputs/apk/debug"
+            exit 1
+          fi
+          "$ANDROID_HOME/platform-tools/adb" install -r "$apk_path"
+
+      - name: Run Maestro e2e flows
+        working-directory: src
+        shell: bash
+        run: maestro test maestro/
+
+      - name: Shut down CI emulator
+        if: always()
+        shell: bash
+        run: |
+          "$ANDROID_HOME/platform-tools/adb" emu kill || true
