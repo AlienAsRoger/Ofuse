@@ -119,3 +119,15 @@ Built and published:
 - If a second donation platform is ever added with different linking needs
   (e.g. an SDK instead of a plain URL), revisit the "keep it a plain
   `String`" decision above — don't preemptively build for that now.
+
+---
+
+## Merge workflow (temporary — no PRs)
+
+To cut down on CI traffic, branches are merged straight to `main` after
+local checks pass, without opening a GitHub PR: run the project's checks
+locally (lint/unit tests/build), then `git merge` the branch into `main`
+directly and push. `.github/workflows/ci.yml`'s `pull_request` trigger was
+removed — it now only runs on `push` to `main`/`master` and manual
+`workflow_dispatch`. Revert by re-adding a `pull_request:` trigger once CI
+traffic/cost stops being a concern.
