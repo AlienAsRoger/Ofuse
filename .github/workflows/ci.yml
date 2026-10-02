@@ -41,7 +41,11 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          cache-provider: basic
+          # Self-hosted runner: ~/.gradle already persists on this machine, and
+          # it's shared with every other project here. Uploading it to the
+          # GitHub Actions cache meant pushing ~17 GB per run, and downloading
+          # the same 17 GB back over a local copy that was already there.
+          cache-disabled: true
 
       - name: Verify Android SDK
         working-directory: src
