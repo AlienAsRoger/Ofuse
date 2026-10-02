@@ -22,6 +22,9 @@ jobs:
 
     env:
       REQUIRED_ANDROID_PLATFORM: "36"
+      # Every emulator action below is scoped to this one AVD by name: this runner
+      # is a shared desktop where other projects and the developer run emulators too.
+      CI_AVD_NAME: CI_Ofuse_Pixel6_API34
       GRADLE_CI_ARGS: "--no-daemon --stacktrace --continue --max-workers=2"
       GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dkotlin.daemon.jvm.options=-Xmx1024m"
 
@@ -104,22 +107,97 @@ jobs:
           fi
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
+      - name: Clean up a stray CI emulator from previous runs
+        shell: bash
+        run: |
+          set +e
+          ADB="$ANDROID_HOME/platform-tools/adb"
+
+          # Only ever kills $CI_AVD_NAME. This used to `emu kill` every attached
+          # emulator, `adb kill-server`, and `pkill -f qemu-system` -- which on a
+          # shared machine tears down whatever else happens to be running, and
+          # killing the adb server breaks other sessions' connections too.
+          if [[ -x "$ADB" ]]; then
+            for serial in $("$ADB" devices | awk '/^emulator-/{print $1}'); do
+              avd=$("$ADB" -s "$serial" emu avd name 2>/dev/null | head -1 | tr -d '\r')
+              if [[ "$avd" == "$CI_AVD_NAME" ]]; then
+                echo "Killing stray $CI_AVD_NAME on $serial"
+                "$ADB" -s "$serial" emu kill
+              else
+                echo "Leaving $serial alone (AVD: ${avd:-unknown})"
+              fi
+            done
+          fi
+
+          # Backstop for an instance whose console no longer answers `emu kill`.
+          # Matches the `-avd <name>` argument on the qemu command line, so it
+          # is still scoped to this AVD.
+          pkill -f "avd $CI_AVD_NAME" || true
+          exit 0
+
       - name: Boot CI Android emulator
         working-directory: src
         shell: bash
-        env:
-          CI_AVD_NAME: CI_Ofuse_Pixel6_API34
         run: |
           set -euo pipefail
+          adb="$ANDROID_HOME/platform-tools/adb"
           nohup "$ANDROID_HOME/emulator/emulator" -avd "$CI_AVD_NAME" \
             -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect \
             > "/tmp/emulator-$CI_AVD_NAME.log" 2>&1 &
-          "$ANDROID_HOME/platform-tools/adb" wait-for-device
-          boot_completed=""
-          until [[ "$boot_completed" == "1" ]]; do
-            boot_completed=$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+
+          # Match on the AVD name rather than taking the first emulator in the
+          # list. Now that the cleanup above leaves other projects' emulators
+          # running, "the first one" is frequently somebody else's -- which is
+          # how a previous run executed the whole suite on a Pixel_9 that this
+          # workflow never booted. AGP's device provider honours ANDROID_SERIAL,
+          # so getting this right is also what pins the tests to our emulator.
+          serial=""
+          deadline=$((SECONDS + 300))
+          until [[ -n "$serial" ]]; do
+            for candidate in $("$adb" devices | awk '/^emulator-/{print $1}'); do
+              avd=$("$adb" -s "$candidate" emu avd name 2>/dev/null | head -1 | tr -d '\r')
+              if [[ "$avd" == "$CI_AVD_NAME" ]]; then
+                serial="$candidate"
+                break
+              fi
+            done
+            if [[ -z "$serial" && $SECONDS -ge $deadline ]]; then
+              echo "::error::$CI_AVD_NAME did not appear within 300s. See /tmp/emulator-$CI_AVD_NAME.log"
+              exit 1
+            fi
             sleep 2
           done
+          echo "Using $serial for $CI_AVD_NAME"
+          echo "ANDROID_SERIAL=$serial" >> "$GITHUB_ENV"
+
+          "$adb" -s "$serial" wait-for-device
+          boot_completed=""
+          until [[ "$boot_completed" == "1" ]]; do
+            boot_completed=$("$adb" -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            sleep 2
+          done
+
+      - name: Keep the CI emulator awake and unlocked
+        shell: bash
+        run: |
+          set -uo pipefail
+          adb="$ANDROID_HOME/platform-tools/adb"
+
+          # A sleeping or locked emulator does not resume the Compose test host
+          # activity, and every test that runs while it is out dies with
+          # "IllegalStateException: No compose hierarchies found in the app" --
+          # a different, random handful each run, which reads like flaky tests
+          # rather than a flaky device. Seen failing a docs-only commit that
+          # changed no code at all.
+          #
+          # Each command is individually non-fatal: this is device hygiene, not
+          # a test, and an image without `wm dismiss-keyguard` shouldn't fail
+          # the build.
+          echo "Keeping $ANDROID_SERIAL ($CI_AVD_NAME) awake"
+          "$adb" -s "$ANDROID_SERIAL" shell svc power stayon true || true
+          "$adb" -s "$ANDROID_SERIAL" shell input keyevent KEYCODE_WAKEUP || true
+          "$adb" -s "$ANDROID_SERIAL" shell wm dismiss-keyguard || true
+          "$adb" -s "$ANDROID_SERIAL" shell settings put system screen_off_timeout 1800000 || true
 
       - name: Run instrumented tests
         working-directory: src
@@ -143,10 +221,25 @@ jobs:
       - name: Run Maestro e2e flows
         working-directory: src
         shell: bash
-        run: maestro test maestro/
+        # Maestro ignores ANDROID_SERIAL and picks the first attached device,
+        # which on this shared machine can be a developer's emulator rather
+        # than the CI AVD -- pin it explicitly.
+        run: maestro --device "$ANDROID_SERIAL" test maestro/
 
       - name: Shut down CI emulator
         if: always()
         shell: bash
         run: |
-          "$ANDROID_HOME/platform-tools/adb" emu kill || true
+          set +e
+          ADB="$ANDROID_HOME/platform-tools/adb"
+
+          # Same rule as the cleanup step: this job shuts down its own emulator
+          # and nothing else on the machine.
+          for serial in $("$ADB" devices | awk '/^emulator-/{print $1}'); do
+            avd=$("$ADB" -s "$serial" emu avd name 2>/dev/null | head -1 | tr -d '\r')
+            if [[ "$avd" == "$CI_AVD_NAME" ]]; then
+              echo "Shutting down $CI_AVD_NAME on $serial"
+              "$ADB" -s "$serial" emu kill
+            fi
+          done
+          exit 0
