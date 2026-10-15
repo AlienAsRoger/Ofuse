@@ -66,7 +66,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.AlienAsRoger"
                 artifactId = "ofuse"
-                version = "0.1.2"
+                version = "0.1.3"
             }
         }
     }
